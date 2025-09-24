@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Map Maker — Full Width Layout</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <!-- dom-to-image for map export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js"></script>
+</head>
+<body>
+
+  <header>
+    <div>Map Maker — Paste your addresses below</div>
+  </header>
+<!-- Top Ad Banner -->
+<div id="topAdBanner" style="
+    width: 100%;
+    min-height: 60px;
+    margin-bottom: 10px;
+    background: #f1f1f1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #ddd;
+    font-size: 14px;
+    color: #555;
+">
+    Your Ad Here
+</div>
+
+  <div class="container">
+
+    <div class="input-section">
+      <div class="instructions">
+        Paste or type your addresses here. Use this format: Label, Name, Address (Label and Name are optional)<br>
+        The label will appear on the map, useful for numbering your markers.
+      </div>
+      <textarea id="addressInput" placeholder="Ex. Stop 1, Our Hotel, 123 Main St.&#10;Separate each category with comma or tab. If you are pasting from a spreadsheet no action is needed."></textarea>
+      <button id="importBtn">Import Addresses to Table</button>
+    </div>
+
+    <div class="table-section">
+      <table id="addressTable">
+        <thead id="tableHead" style="display: none;">
+          <tr>
+            <th></th>
+            <th>Label</th>
+            <th>Name</th>
+            <th>Address</th>
+            <th>Shape</th>
+            <th>Color</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Rows dynamically added by JS -->
+        </tbody>
+      </table>
+    </div>
+    
+<div id="loadingPopup" class="loading-popup" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:9999; justify-content:center; align-items:center;">
+  <div class="loading-content" style="background:#fff; padding:20px 30px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.3); font-size:16px; font-weight:600;">
+    <p id="loadingText">Loading addresses, please wait…</p>
+  </div>
+</div>
+
+    <!-- Map My Addresses button directly under the table -->
+    <div class="map-btn-container">
+      <button id="mapBtn">Map My Addresses</button>
+    </div>
+
+    <div class="controls-section">
+      <div id="status">Status: Ready</div>
+
+      <label for="mapStyle" class="map-style-label">MAP STYLE</label>
+      <select id="mapStyle">
+        <option value="regular">Regular</option>
+        <option value="bw">B&amp;W</option>
+        <option value="voyager" selected>Voyager</option>
+      </select>
+
+      <button id="clearBtn">Clear Results</button>
+      <button id="downloadJson">Save Map For Later Use</button>
+ <div style="display: flex; align-items: center; gap: 10px;">
+    <button id="exportPng">Save Map as Image</button>
+
+    <!-- PayPal Donate Button -->
+    <form action="https://paypal.me/MapMakerCreatorTY" method="post" target="_blank" style="margin:0;">
+        <input type="hidden" name="business" value="YOUR_PAYPAL_EMAIL_HERE" />
+        <input type="hidden" name="currency_code" value="USD" />
+        <button type="submit" style="
+            padding: 6px 12px;
+            background: #ffc439;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            border-radius: 4px;
+        ">
+            Thank the Creator
+        </button>
+    </form>
+</div>
+
+    </div>
+
+    <div id="map"></div>
+
+  </div>
+
+ 
+ <footer style="text-align:center; font-size:12px; color:#666; line-height:1.4;">
+  © 2025 Map Maker Creator. All rights reserved.<br>
+  Attribution: tiles © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>.
+</footer>
+
+
+  <script src="js/main.js"></script>
+  <div id="loadingPopup" class="loading-popup" style="display: none;">
+  <div class="loading-content">
+    <p>Loading addresses, please wait…</p>
+  </div>
+</div>
+</body>
+</html>

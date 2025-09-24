@@ -1,0 +1,150 @@
+body{
+  margin:0;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;
+}
+
+header{
+  background:#f8f9fb;
+  padding:12px 16px;
+  border-bottom:1px solid #e3e6ea;
+  font-weight:600;
+}
+.loading-popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.loading-content {
+  background: white;
+  padding: 20px 30px;
+  border-radius: 10px;
+  font-size: 1.2em;
+  font-weight: bold;
+  box-shadow: 0 0 10px rgba(0,0,0,0.4);
+  text-align: center;
+}
+
+.instructions {
+  font-weight:700;  /* bold */
+  font-size:18px;   /* slightly larger */
+  color:#110303;       /* optional: keep original color */
+  margin-bottom:15px;
+}
+
+.container{
+  width:100%;
+  box-sizing:border-box;
+}
+
+#status {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #333;
+  font-style: italic;
+}
+
+.input-section{
+  width:100%;
+  padding:16px;
+  box-sizing:border-box;
+}
+.map-style-label {
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-right: 6px;
+}
+
+.map-btn-container {
+  margin: 12px 0;
+  text-align: center;
+}
+
+#mapBtn {
+  padding: 8px 16px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+
+.input-section textarea{
+  width:100%;
+  height:150px;
+  padding:10px;
+  font-family:monospace;
+  font-size:13px;
+  border-radius:8px;
+  border:1px solid #ccc;
+  resize:vertical;
+  box-sizing:border-box;
+  margin-bottom:6px;
+}
+
+.input-section button{
+  background:#2b7be4;
+  color:#fff;
+  border:none;
+  padding:8px 14px;
+  border-radius:6px;
+  cursor:pointer;
+}
+
+.input-section button:hover{
+  background:#1e5bb8;
+}
+
+/* make remove column narrow and centered */
+#addressTable th:first-child,
+#addressTable td:first-child { width:36px; text-align:center; }
+
+/* address input sizing */
+#addressTable .addr-input { width:420px; max-width:70vw; }
+
+/* align header text vertically */
+#addressTable th, #addressTable td { vertical-align: middle; padding:6px 8px; }
+
+.controls-section{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  align-items:center;
+  padding:10px 16px;
+}
+
+.controls-section label{
+  font-size:13px;
+  margin-right:4px;
+}
+
+.controls-section select, .controls-section button{
+  padding:6px 10px;
+  font-size:13px;
+  border-radius:6px;
+  border:1px solid #ccc;
+  cursor:pointer;
+}
+
+#map{
+  width:100%;
+  height:70vh;
+  margin-top:10px;
+  border-radius:10px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.08);
+}
+
+
+footer{
+  text-align:center;
+  padding:12px 16px;
+  font-size:13px;
+  color:#666;
+  border-top:1px solid #e3e6ea;
+  margin-top:20px;
+}
