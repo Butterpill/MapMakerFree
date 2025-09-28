@@ -3,24 +3,58 @@
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org/search';
 const SLEEP_MS = 1100;
 // --- Geocode with simple fallback ---
+// --- Geocode with progressive cleanup & city/postal fallback ---
 async function geocodeWithFallback(address) {
+  if (!address || !address.trim()) return null;
+
+  const clean = address
+    .replace(/\s{2,}/g, ' ')   // collapse multiple spaces
+    .replace(/,+/g, ',')       // collapse multiple commas
+    .trim();
+
   const queries = [
-    address,                                       // original
-    address.replace(/,?\s*\bUnited\s+Sta.*$/i,''), // remove “United States” if present
-    address.split(',').slice(0,-1).join(',')       // remove last part of address
+    { q: clean, approximate: false },
+    { q: clean.replace(/,?\s*\b(Turkey|Türkiye|United\s+Sta.*)$/i, ''), approximate: false },
+    { q: clean.split(',').slice(0,-1).join(','), approximate: false },
+    { q: clean.split(',').slice(0,2).join(','), approximate: false }
   ];
 
-  for (const q of queries) {
-    if (!q.trim()) continue;
+  // --- city/postal fallback ---
+  const parts = clean.split(',').map(p => p.trim());
+  const lastPart = parts[parts.length - 1];
+  const firstPart = parts[0];
+
+  if (/\d{4,}/.test(lastPart)) {
+    // likely a postal code
+    queries.push({ q: lastPart, approximate: true });
+  }
+  if (parts.length > 1) {
+    // last chunk as city
+    queries.push({ q: lastPart, approximate: true });
+  }
+  if (firstPart && firstPart.length > 3) {
+    // first chunk as possible city
+    queries.push({ q: firstPart, approximate: true });
+  }
+
+  for (const { q, approximate } of queries) {
+    if (!q) continue;
     try {
       const resp = await fetch(`${NOMINATIM_BASE}?format=json&limit=1&q=${encodeURIComponent(q)}`);
       const json = await resp.json();
       if (json && json.length > 0) {
-        return { lat: parseFloat(json[0].lat), lon: parseFloat(json[0].lon) };
+        return {
+          lat: parseFloat(json[0].lat),
+          lon: parseFloat(json[0].lon),
+          approximate
+        };
       }
-    } catch(e){ console.error('Geocode error:', e); }
+    } catch (e) {
+      console.error('Geocode error:', e);
+    }
   }
-  return null; // could not geocode
+
+  return null; // complete failure
 }
 
 // --- Controls ---
@@ -32,6 +66,162 @@ const downloadJsonBtn = document.getElementById('downloadJson');
 const exportPngBtn = document.getElementById('exportPng');
 const addressTableBody = document.querySelector('#addressTable tbody');
 const clearBtn = document.getElementById('clearBtn');
+
+// --- Column toggle states for map ---
+let showNumber = true;
+let showName = true;
+let showAddress = true;
+
+// Buttons start hidden; they will appear when table has rows
+const toggleNumberBtn = document.getElementById('toggleNumber');
+const toggleNameBtn = document.getElementById('toggleName');
+const toggleAddressBtn = document.getElementById('toggleAddress');
+
+
+function updateMarkersText() {
+  markerGroup.eachLayer(marker => {
+    if(marker.getPopup){
+      const popup = marker.getPopup();
+      if(popup){
+        const content = popup.getContent();
+        // parse existing content or regenerate
+        // simpler: regenerate using latest table data
+      }
+    }
+  });
+}
+
+// --- Toggle handlers ---
+if(toggleNumberBtn){
+  toggleNumberBtn.addEventListener('click', ()=>{
+    showNumber = !showNumber;
+    toggleNumberBtn.textContent = (showNumber ? 'Hide Number' : 'Show Number');
+    // update markers on map
+    refreshMapMarkers();
+  });
+}
+if(toggleNameBtn){
+  toggleNameBtn.addEventListener('click', ()=>{
+    showName = !showName;
+    toggleNameBtn.textContent = (showName ? 'Hide Name' : 'Show Name');
+    refreshMapMarkers();
+  });
+}
+if(toggleAddressBtn){
+  toggleAddressBtn.addEventListener('click', ()=>{
+    showAddress = !showAddress;
+    toggleAddressBtn.textContent = (showAddress ? 'Hide Address' : 'Show Address');
+    refreshMapMarkers();
+  });
+}
+
+addressTableBody.addEventListener('input', function(e) {
+  const row = e.target.closest('tr');
+  if (!row) return;
+  const placeholder = e.target.getAttribute('placeholder');
+  if(placeholder==='Number' || placeholder==='Name'){
+    refreshMapMarkers();
+  }
+});
+
+function refreshMapMarkers() {
+  const rows = getTableData();
+  const allMarkers = markerGroup.getLayers();
+
+  allMarkers.forEach((marker, i) => {
+    const row = rows[i];
+    if (!row) return;
+
+    // Determine text inside marker (short number)
+    const insideMarker = (showNumber && row.label && row.label.length <= 3) ? row.label : '';
+
+    // Text below marker
+    const belowMarkerLines = [];
+    if (showNumber && row.label && row.label.length > 3) belowMarkerLines.push(row.label);
+    if (showName && row.name) belowMarkerLines.push(row.name);
+    if (showAddress && row.address) belowMarkerLines.push(row.address);
+
+    const belowHtml = belowMarkerLines.length > 0
+      ? `<div class="marker-label">${belowMarkerLines.join('<br>')}</div>`
+      : '';
+
+    // Update popup content
+    const popupText = `<strong>${escapeHtml(row.label)}</strong><br>${escapeHtml(row.name)}<br>${escapeHtml(row.address)}`;
+    if (marker.getPopup) marker.setPopupContent(popupText);
+
+    const hexColor = row.color === 'custom' ? row.customColor : COLOR_HEX[row.color] || row.color || '#2b7be4';
+
+    if (row.shape === 'point') {
+      // Point marker with inside label
+      let labelText = insideMarker;
+      if (labelText.length > 3) labelText = labelText.slice(0, 3);
+      const lab = xmlEscape(labelText);
+
+      const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="52" viewBox="0 0 36 52">
+  <path d="M18 0C11.2 0 5.5 5.6 5.5 12.5 5.5 22 18 41 18 41s12.5-19 12.5-28.5C30.5 5.6 24.8 0 18 0z" fill="${hexColor}"/>
+  <circle cx="18" cy="12.5" r="6.5" fill="#ffffff"/>
+  <text x="18" y="15" font-size="8" font-family="Arial, Helvetica, sans-serif" text-anchor="middle" fill="#000" font-weight="700">${lab}</text>
+</svg>`;
+
+      const html = `
+<div style="display:flex; flex-direction:column; align-items:center; text-align:center; max-width:200px;">
+  ${svg}
+  ${belowHtml}
+</div>`;
+
+      const icon = L.divIcon({
+        className: 'svg-marker',
+        html,
+        iconSize: [36, 52 + (belowMarkerLines.length > 0 ? belowMarkerLines.length * 14 : 0)],
+        iconAnchor: [18, 52]
+      });
+
+      marker.setIcon(icon);
+    } else {
+      // Other shapes (circle, square, oval)
+      const textColor = isLight(hexColor) ? '#000' : '#fff';
+      let width = 30, height = 30, borderRadius = '50%';
+      if (row.shape === 'square') borderRadius = '0';
+      if (row.shape === 'oval') { width = 40; height = 25; borderRadius = '50% / 50%'; }
+
+      const html = `
+<div style="
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  width:auto;
+  max-width:200px;
+  text-align:center;
+">
+  <div style="
+    background:${hexColor};
+    color:${textColor};
+    width:${width}px;
+    height:${height}px;
+    border-radius:${borderRadius};
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:12px;
+    font-weight:600;
+    box-shadow:0 1px 2px rgba(0,0,0,0.25);">
+    ${insideMarker ? escapeHtml(insideMarker) : ''}
+  </div>
+  ${belowHtml}
+</div>`;
+
+      const icon = L.divIcon({
+        className: 'svg-marker',
+        html,
+        iconSize: [width, height + (belowMarkerLines.length > 0 ? belowMarkerLines.length * 14 : 0)],
+        iconAnchor: [width / 2, height]
+      });
+
+      marker.setIcon(icon);
+    }
+  });
+}
 
 // --- Initialize map centered on NYC ---
 const map = L.map('map', { preferCanvas: false }).setView([40.7128, -74.0060], 12);
@@ -94,18 +284,29 @@ function isLight(hex){
 }
 
 // --- Update table header visibility ---
-function updateTableHeaderVisibility(){
-  const tableHead = document.getElementById('tableHead');
-  if(!tableHead) return;
-  tableHead.style.display = addressTableBody.querySelectorAll('tr').length > 0 ? 'table-header-group' : 'none';
+function updateTableControlsVisibility() {
+  const rowCount = addressTableBody.querySelectorAll('tr').length;
+
+  // Show table headers if rows exist, hide if empty
+  const tableHead = document.querySelector('#addressTable thead');
+  if (tableHead) tableHead.style.display = rowCount > 0 ? 'table-header-group' : 'none';
+
+  // Show Map button only if table has rows
+  const mapBtnContainer = document.querySelector('.map-btn-container');
+  if(mapBtnContainer) mapBtnContainer.style.display = rowCount > 0 ? 'block' : 'none';
+
+  // Show column toggle buttons only if table has rows
+  const columnToggles = document.querySelector('.column-toggles');
+  if(columnToggles) columnToggles.style.display = rowCount > 0 ? 'flex' : 'none';
 }
+
 
 // --- Add table row ---
 function addTableRow(label='', name='', address='', shape='circle', color='blue', customColor='#2b7be4'){
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td style="width:36px; text-align:center;"><button class="remove-row" title="Remove this address" style="cursor:pointer">×</button></td>
-    <td><input value="${escapeHtml(label)}" placeholder="Label" style="min-width:70px;"></td>
+    <td><input value="${escapeHtml(label)}" placeholder="Number" style="min-width:70px;"></td>
     <td><input value="${escapeHtml(name)}" placeholder="Name" style="min-width:120px;"></td>
     <td><input value="${escapeHtml(address)}" placeholder="Address" class="addr-input" style="width:420px; max-width:70vw;"></td>
     <td>
@@ -123,40 +324,47 @@ function addTableRow(label='', name='', address='', shape='circle', color='blue'
     <td class="shape-note" style="padding-left:8px; font-size:12px; color:#666;"></td>
   `;
 
-  tr.querySelector('.remove-row').addEventListener('click', ()=>{ tr.remove(); updateTableHeaderVisibility(); });
+  tr.querySelector('.remove-row').addEventListener('click', ()=>{ 
+    tr.remove();
+  });
+
   const colorSelect = tr.querySelector('.color-select');
   const colorInput = tr.querySelector('.custom-color');
   colorSelect.addEventListener('change', ()=>{ colorInput.style.display = colorSelect.value==='custom'?'inline-block':'none'; });
-  tr.querySelector('.shape-select').addEventListener('change', ()=>{ tr.querySelector('.shape-note').textContent=''; });
 
-  addressTableBody.appendChild(tr);
-  updateTableHeaderVisibility();
+tr.querySelector('.shape-select').addEventListener('change', ()=>{ 
+  tr.querySelector('.shape-note').textContent='';
+});
+
+addressTableBody.appendChild(tr);
+updateTableControlsVisibility();  // ← correct function
 }
 
-// --- Import addresses ---
-function importAddressesToTable(){
-  if(!addressInput) return;
-  const lines = addressInput.value.split('\n').map(l=>l.trim()).filter(Boolean);
-  const existingAddresses = new Set(Array.from(addressTableBody.querySelectorAll('.addr-input')).map(inp=>inp.value.trim().toLowerCase()).filter(Boolean));
-  let labelCounter = addressTableBody.querySelectorAll('tr').length + 1;
+function importAddressesToTable() {
+  if (!addressInput) return;
 
-  lines.forEach(line=>{
-    let label='', name='', address='';
-    let parts = line.includes('\t') ? line.split('\t') : line.split(',');
-    parts = parts.map(p=>p.trim()).filter(p=>p!=='');
-    if(parts.length>=3){ label=parts[0]||labelCounter.toString(); name=parts[1]||''; address=parts.slice(2).join(', ').trim(); }
-    else if(parts.length===2){ label=parts[0]||labelCounter.toString(); address=parts[1].trim(); }
-    else { label=labelCounter.toString(); address=parts[0]?parts[0].trim():''; }
-    if(address){
+  const lines = addressInput.value.split('\n').map(l => l.trim()).filter(Boolean);
+  const existingAddresses = new Set(
+    Array.from(addressTableBody.querySelectorAll('.addr-input'))
+         .map(inp => inp.value.trim().toLowerCase())
+         .filter(Boolean)
+  );
+
+  lines.forEach(line => {
+    const address = line;  // everything goes into Address column
+    if (address) {
       const aNorm = address.toLowerCase();
-      if(!existingAddresses.has(aNorm)){
-        addTableRow(label,name,address);
+      if (!existingAddresses.has(aNorm)) {
+        addTableRow('', '', address); // Number and Name left blank
         existingAddresses.add(aNorm);
-        labelCounter++;
       }
     }
   });
+
+  // After all rows are added, update visibility of map button and column toggles
+  updateTableControlsVisibility();
 }
+
 
 // --- Tab key inside textarea ---
 addressInput.addEventListener('keydown', function(e){
@@ -170,23 +378,37 @@ addressInput.addEventListener('keydown', function(e){
 });
 
 // --- Get table data ---
-function getTableData(){
+function getTableData() {
   const rows = Array.from(addressTableBody.querySelectorAll('tr'));
   const data = [];
-  rows.forEach((r,i)=>{
+
+  rows.forEach((r) => {
     const shape = r.querySelector('.shape-select')?.value || 'circle';
     const colorSel = r.querySelector('.color-select');
     let color = colorSel?.value || 'blue';
     let customColor = '#2b7be4';
     const colorInput = r.querySelector('.custom-color');
-    if(color==='custom' && colorInput) customColor=colorInput.value||customColor;
-    const label=r.querySelector('input[placeholder="Label"]').value.trim()||(i+1).toString();
-    const name=r.querySelector('input[placeholder="Name"]').value.trim()||'';
-    const address=r.querySelector('input[placeholder="Address"], .addr-input').value.trim();
-    if(address) data.push({label,name,address,shape,color,customColor});
+    if (color === 'custom' && colorInput) customColor = colorInput.value || customColor;
+
+    const label   = r.querySelector('input[placeholder="Number"]').value.trim();
+    const name    = r.querySelector('input[placeholder="Name"]').value.trim() || '';
+    const address = r.querySelector('input[placeholder="Address"], .addr-input').value.trim();
+
+    if (address) {
+      data.push({
+        label,
+        name,
+        address,
+        shape,
+        color,
+        customColor
+      });
+    }
   });
-  return data;
+
+  return data;  // ✅ return once, after the loop
 }
+
 
 // --- Loading popup ---
 function showLoading(){ document.getElementById('loadingPopup').style.display='flex'; }
@@ -199,7 +421,7 @@ if(clearBtn){
     if(confirm("Are you sure? This will clear all addresses and map markers.")){
       markerGroup.clearLayers();
       addressTableBody.innerHTML='';
-      updateTableHeaderVisibility();
+      updateTableControlsVisibility()
       status('Cleared all results');
     }
   });
@@ -222,39 +444,104 @@ function makeSvgPin(hexColor,labelText=''){
 }
 
 // --- Add marker (draggable) ---
-function addMarker(lat, lon, row){
-  const hexColor = row.color==='custom' ? (row.customColor||'#2b7be4') : (COLOR_HEX[row.color]||row.color||'#2b7be4');
-  
-  if(row.shape==='point'){
-    const pinIcon = makeSvgPin(hexColor,row.label);
-    L.marker([lat,lon], {icon:pinIcon, draggable:true})
-      .addTo(markerGroup)
-      .bindPopup(`<strong>${escapeHtml(row.label)}</strong><br>${escapeHtml(row.name)}<br>${escapeHtml(row.address)}`);
-    return;
-  }
+function addMarker(lat, lon, row) {
+  const hexColor = row.color === 'custom'
+    ? (row.customColor || '#2b7be4')
+    : (COLOR_HEX[row.color] || row.color || '#2b7be4');
 
-  const textColor=isLight(hexColor)?'#000':'#fff';
-  let width=30, height=30, borderRadius='50%';
-  if(row.shape==='square') borderRadius='0';
-  if(row.shape==='oval'){width=40; height=25; borderRadius='50% / 50%';}
+  // --- label inside marker ---
+  const insideMarker = (showNumber && row.label && row.label.length <= 3) ? row.label : '';
 
-  const html=`<div style="
-    background:${hexColor}; 
-    color:${textColor}; 
-    width:${width}px; 
-    height:${height}px; 
-    border-radius:${borderRadius}; 
-    display:flex; 
-    align-items:center; 
-    justify-content:center; 
-    font-size:12px; 
-    font-weight:600; 
-    box-shadow:0 1px 2px rgba(0,0,0,0.25);">${escapeHtml(row.label)}</div>`;
+  // --- stacked text under marker ---
+  const belowMarker = [];
+  if (showNumber && row.label && row.label.length > 3) belowMarker.push(escapeHtml(row.label));
+  if (showName && row.name) belowMarker.push(escapeHtml(row.name));
+  if (showAddress && row.address) belowMarker.push(escapeHtml(row.address));
 
-  const icon=L.divIcon({className:'svg-marker', html, iconSize:[width,height], iconAnchor:[width/2,height]});
-  L.marker([lat,lon], {icon, draggable:true})
+  const belowText = belowMarker.join('<br>');
+  const belowHtml = belowText
+    ? `<div class="marker-label">${belowText}</div>`
+    : '';
+
+if (row.shape === 'point') {
+  // makeSvgPin produces the SVG as a string
+  let labelText = (insideMarker || '');
+  if (labelText.length > 3) labelText = labelText.slice(0,3);
+  const lab = xmlEscape(labelText);
+
+  const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="52" viewBox="0 0 36 52">
+  <path d="M18 0C11.2 0 5.5 5.6 5.5 12.5 5.5 22 18 41 18 41s12.5-19 12.5-28.5C30.5 5.6 24.8 0 18 0z" fill="${hexColor}"/>
+  <circle cx="18" cy="12.5" r="6.5" fill="#ffffff"/>
+  <text x="18" y="15" font-size="8" font-family="Arial, Helvetica, sans-serif" text-anchor="middle" fill="#000" font-weight="700">${lab}</text>
+</svg>`;
+
+  const html = `
+<div style="display:flex; flex-direction:column; align-items:center; text-align:center; max-width:200px;">
+  ${svg}
+  ${belowHtml}
+</div>`;
+
+  const icon = L.divIcon({
+    className: 'svg-marker',
+    html,
+    iconSize: [36, 52 + (belowMarker.length > 0 ? belowMarker.length * 14 : 0)],
+    iconAnchor: [18, 52]
+  });
+
+  L.marker([lat, lon], { icon, draggable: true })
     .addTo(markerGroup)
-    .bindPopup(`<strong>${escapeHtml(row.label)}</strong><br>${escapeHtml(row.name)}<br>${escapeHtml(row.address)}`);
+    .bindPopup(
+      `<strong>${escapeHtml(row.label)}</strong><br>${escapeHtml(row.name)}<br>${escapeHtml(row.address)}`
+    );
+
+  return;
+}
+
+  // --- other shapes ---
+  const textColor = isLight(hexColor) ? '#000' : '#fff';
+  let width = 30, height = 30, borderRadius = '50%';
+  if (row.shape === 'square') borderRadius = '0';
+  if (row.shape === 'oval') { width = 40; height = 25; borderRadius = '50% / 50%'; }
+
+  const html = `
+<div style="
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  width:auto;
+  max-width:200px;
+  text-align:center;
+">
+      <div style="
+        background:${hexColor};
+        color:${textColor};
+        width:${width}px;
+        height:${height}px;
+        border-radius:${borderRadius};
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-size:12px;
+        font-weight:600;
+        box-shadow:0 1px 2px rgba(0,0,0,0.25);">
+        ${insideMarker ? escapeHtml(insideMarker) : ''}
+      </div>
+      ${belowHtml}
+    </div>`;
+
+  const icon = L.divIcon({
+    className: 'svg-marker',
+    html,
+    iconSize: [width, height + (belowMarker.length > 0 ? belowMarker.length * 14 : 0)],
+    iconAnchor: [width / 2, height]
+  });
+
+  L.marker([lat, lon], { icon, draggable: true })
+    .addTo(markerGroup)
+    .bindPopup(
+      `<strong>${escapeHtml(row.label)}</strong><br>${escapeHtml(row.name)}<br>${escapeHtml(row.address)}`
+    );
 }
 
 // --- Geocode & plot with alert for failures ---
@@ -268,26 +555,41 @@ if(mapBtn) mapBtn.addEventListener('click', async ()=>{
     markerGroup.clearLayers();
     const bounds = [];
 
-    for(let i=0;i<data.length;i++){
-      const row = data[i];
-      const text=`Geocoding ${i+1}/${data.length}: ${row.address}`;
-      status(text); updateLoadingText(text);
+for (let i = 0; i < data.length; i++) {
+  const row = data[i];
+  const text = `Geocoding ${i + 1}/${data.length}: ${row.address}`;
+  status(text);
+  updateLoadingText(text);
 
-      await new Promise(r=>setTimeout(r,SLEEP_MS));
+  await new Promise(r => setTimeout(r, SLEEP_MS));
 
-      const result = await geocodeWithFallback(row.address);
-      if(result){
-        addMarker(result.lat, result.lon, row);
-        bounds.push([result.lat, result.lon]);
-      } else {
-        failedAddresses.push(row.address);
-      }
+  const result = await geocodeWithFallback(row.address);
+  if (result) {
+    addMarker(result.lat, result.lon, row);
+
+    if (result.approximate) {
+      alert(`Could not find an exact match for:\n"${row.address}"\n\nPlaced marker at closest match (city/postal).\nYou can drag it to refine the location.`);
     }
 
-    if(bounds.length>0){ map.fitBounds(bounds,{padding:[40,40]}); status('Finished plotting addresses'); updateLoadingText('Finished plotting addresses'); }
-    else { status('No addresses were successfully geocoded.'); updateLoadingText('No addresses were successfully geocoded.'); }
+    bounds.push([result.lat, result.lon]);
+  } else {
+    failedAddresses.push(row.address);
+  }
+}
 
-    if(failedAddresses.length>0) alert("Failed to geocode the following addresses:\n" + failedAddresses.join('\n'));
+// ✅ after the loop finishes:
+if (bounds.length > 0) {
+  map.fitBounds(bounds, { padding: [40, 40] });
+  status('Finished plotting addresses');
+  updateLoadingText('Finished plotting addresses');
+} else {
+  status('No addresses were successfully geocoded.');
+  updateLoadingText('No addresses were successfully geocoded.');
+}
+
+if (failedAddresses.length > 0) {
+  alert("Failed to geocode the following addresses:\n" + failedAddresses.join('\n'));
+}
 
   } finally { hideLoading(); }
 });
@@ -325,3 +627,53 @@ if(exportPngBtn){
 L.circleMarker([40.7128, -74.0060], {
   radius:6,color:'#2b7be4',fillColor:'#2b7be4',fillOpacity:0.7
 }).addTo(markerGroup).bindPopup("New York City");
+
+const feedbackBtn = document.getElementById('feedbackBtn');
+const feedbackForm = document.getElementById('feedbackForm');
+const feedbackText = document.getElementById('feedbackText');
+const submitFeedback = document.getElementById('submitFeedback');
+const cancelFeedback = document.getElementById('cancelFeedback');
+const feedbackStatus = document.getElementById('feedbackStatus');
+
+// Show the feedback form when button clicked
+feedbackBtn.addEventListener('click', () => {
+  feedbackForm.style.display = 'block';
+  feedbackText.focus();
+});
+
+// Hide the form on cancel
+cancelFeedback.addEventListener('click', () => {
+  feedbackForm.style.display = 'none';
+  feedbackText.value = '';
+  feedbackStatus.textContent = '';
+});
+
+// Send feedback to Formspree without leaving the page
+submitFeedback.addEventListener('click', async () => {
+  const message = feedbackText.value.trim();
+  if (!message) {
+    feedbackStatus.textContent = 'Please enter feedback before sending.';
+    return;
+  }
+
+  feedbackStatus.textContent = 'Sending...';
+
+  try {
+    const response = await fetch('https://formspree.io/f/xeoroqdz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ message })
+    });
+
+    if (response.ok) {
+      feedbackStatus.textContent = 'Thank you for your feedback!';
+      feedbackText.value = '';
+      setTimeout(() => feedbackForm.style.display = 'none', 2000);
+    } else {
+      feedbackStatus.textContent = 'Oops, there was an error. Try again.';
+    }
+  } catch (e) {
+    feedbackStatus.textContent = 'Error sending feedback.';
+    console.error(e);
+  }
+});

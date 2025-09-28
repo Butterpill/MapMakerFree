@@ -19,7 +19,7 @@
 <body>
 
   <header>
-    <div>Map Maker — Paste your addresses below</div>
+    <div>Welcome to Map Maker!</div>
   </header>
 <!-- Top Ad Banner -->
 <div id="topAdBanner" style="
@@ -41,19 +41,19 @@
 
     <div class="input-section">
       <div class="instructions">
-        Paste or type your addresses here. Use this format: Label, Name, Address (Label and Name are optional)<br>
-        The label will appear on the map, useful for numbering your markers.
+         Type Or Paste Your Addresses Here.
       </div>
-      <textarea id="addressInput" placeholder="Ex. Stop 1, Our Hotel, 123 Main St.&#10;Separate each category with comma or tab. If you are pasting from a spreadsheet no action is needed."></textarea>
-      <button id="importBtn">Import Addresses to Table</button>
+      <textarea id="addressInput" placeholder="After loading your addresses you will be able to customize map markers and labels."></textarea>
+      <button id="importBtn">Load My Addresses To Table</button>
     </div>
+
 
     <div class="table-section">
       <table id="addressTable">
         <thead id="tableHead" style="display: none;">
           <tr>
             <th></th>
-            <th>Label</th>
+            <th>Number</th>
             <th>Name</th>
             <th>Address</th>
             <th>Shape</th>
@@ -73,10 +73,19 @@
   </div>
 </div>
 
-    <!-- Map My Addresses button directly under the table -->
-    <div class="map-btn-container">
-      <button id="mapBtn">Map My Addresses</button>
-    </div>
+<!-- Column toggle buttons row -->
+<div class="column-toggles" style="display:none; justify-content:flex-start; gap:150px; margin-top:4px;">
+  <button id="toggleNumber">Hide Number</button>
+  <button id="toggleName">Hide Name</button>
+  <button id="toggleAddress">Hide Address</button>
+</div>
+
+
+<div class="map-btn-container" style="position: relative; display:none;">
+  <span class="map-instruction">Great, now customize your map markers and labels before mapping:</span>
+  <button id="mapBtn">Map My Addresses</button>
+</div>
+
 
     <div class="controls-section">
       <div id="status">Status: Ready</div>
@@ -110,6 +119,19 @@
     </form>
 </div>
 
+<!-- Feedback button next to "Thank the Creator" -->
+<button id="feedbackBtn">Feedback</button>
+
+<!-- Hidden feedback form -->
+<div id="feedbackForm" style="display:none; margin-top:8px;">
+  <textarea id="feedbackText" name="message" placeholder="Type your feedback here..." rows="4" cols="40" style="width:100%;"></textarea>
+  <br>
+  <button id="submitFeedback">Send Feedback</button>
+  <button id="cancelFeedback" type="button">Cancel</button>
+  <span id="feedbackStatus" style="margin-left:10px;"></span>
+</div>
+
+
     </div>
 
     <div id="map"></div>
@@ -119,6 +141,7 @@
  
  <footer style="text-align:center; font-size:12px; color:#666; line-height:1.4;">
   © 2025 Map Maker Creator. All rights reserved.<br>
+  Unauthorized copying, distribution, or modification of this site or code is prohibited.<br>
   Attribution: tiles © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>.
 </footer>
 
